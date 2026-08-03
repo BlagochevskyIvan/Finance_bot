@@ -35,7 +35,6 @@ if BOT_ENABLED:
         for name, value in {
             "TELEGRAM_TOKEN": TELEGRAM_TOKEN,
             "WEBHOOK_URL": WEBHOOK_URL,
-            "WEBAPP_URL": WEBAPP_URL,
             "TELEGRAM_SECRET": TELEGRAM_SECRET,
         }.items()
         if not value
@@ -44,5 +43,5 @@ if BOT_ENABLED:
         raise RuntimeError(
             f"BOT_ENABLED=true, but required settings are missing: {', '.join(missing)}"
         )
-    if not WEBHOOK_URL.startswith("https://") or not WEBAPP_URL.startswith("https://"):
-        raise RuntimeError("WEBHOOK_URL and WEBAPP_URL must use HTTPS when the bot is enabled")
+    if not WEBHOOK_URL.startswith("https://"):
+        raise RuntimeError("WEBHOOK_URL must use HTTPS when the bot is enabled")

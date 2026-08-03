@@ -1,8 +1,32 @@
-from telegram.ext import Application, CommandHandler, PicklePersistence
+from telegram.ext import (
+    Application,
+    CallbackQueryHandler,
+    CommandHandler,
+    ConversationHandler,
+    MessageHandler,
+    PicklePersistence,
+    filters,
+)
 
 from config.envcfg import BOT_CACHE_PATH, TELEGRAM_TOKEN
 from config.logger import logger
-from handlers.common import start
+from config.states import EXPENSE_AMOUNT, EXPENSE_CATEGORY, EXPENSE_DESCRIPTION
+from handlers.common import (
+    show_help,
+    show_main_menu,
+    show_recent_expenses,
+    start,
+)
+from handlers.expenses import (
+    cancel_expense,
+    menu_from_conversation,
+    receive_amount,
+    receive_category,
+    receive_description,
+    restart_from_conversation,
+    skip_description,
+    start_add_expense,
+)
 
 
 def create_bot_app() -> Application:
@@ -14,6 +38,43 @@ def create_bot_app() -> Application:
         .persistence(persistence)
         .build()
     )
+    expense_conversation = ConversationHandler(
+        entry_points=[
+            CallbackQueryHandler(start_add_expense, pattern=r"^expense:add$")
+        ],
+        states={
+            EXPENSE_AMOUNT: [
+                MessageHandler(filters.TEXT & ~filters.COMMAND, receive_amount)
+            ],
+            EXPENSE_CATEGORY: [
+                CallbackQueryHandler(
+                    receive_category, pattern=r"^expense:category:[a-z]+$"
+                )
+            ],
+            EXPENSE_DESCRIPTION: [
+                CallbackQueryHandler(skip_description, pattern=r"^expense:skip$"),
+                MessageHandler(filters.TEXT & ~filters.COMMAND, receive_description),
+            ],
+        },
+        fallbacks=[
+            CommandHandler("start", restart_from_conversation),
+            CommandHandler("menu", menu_from_conversation),
+            CommandHandler("cancel", cancel_expense),
+            CallbackQueryHandler(menu_from_conversation, pattern=r"^menu:main$"),
+            CallbackQueryHandler(cancel_expense, pattern=r"^expense:cancel$"),
+        ],
+        allow_reentry=True,
+        name="add_expense",
+        persistent=True,
+    )
+
+    application.add_handler(expense_conversation)
     application.add_handler(CommandHandler("start", start))
+    application.add_handler(CommandHandler("menu", show_main_menu))
+    application.add_handler(CallbackQueryHandler(show_main_menu, pattern=r"^menu:main$"))
+    application.add_handler(
+        CallbackQueryHandler(show_recent_expenses, pattern=r"^menu:recent$")
+    )
+    application.add_handler(CallbackQueryHandler(show_help, pattern=r"^menu:help$"))
     logger.info("Telegram bot application initialized")
     return application
