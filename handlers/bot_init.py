@@ -71,6 +71,7 @@ def create_bot_app() -> Application:
     application.add_handler(expense_conversation)
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("menu", show_main_menu))
+    application.add_handler(CommandHandler("help", show_help))
     application.add_handler(CallbackQueryHandler(show_main_menu, pattern=r"^menu:main$"))
     application.add_handler(
         CallbackQueryHandler(show_recent_expenses, pattern=r"^menu:recent$")

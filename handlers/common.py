@@ -130,10 +130,10 @@ async def show_recent_expenses(
 async def show_help(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     del context
     query = update.callback_query
-    if query is None:
-        return
-    await query.answer()
-    await query.edit_message_text(
+    if query is not None:
+        await query.answer()
+    await _send_or_edit(
+        update,
         "<b>Как пользоваться ботом</b>\n\n"
         "1. Нажмите «Добавить расход».\n"
         "2. Введите сумму.\n"
