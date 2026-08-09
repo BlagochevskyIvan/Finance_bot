@@ -1,6 +1,6 @@
 from decimal import Decimal
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from telegram import User as TelegramUser
 
@@ -53,3 +53,26 @@ async def get_recent_expenses(
         .limit(limit)
     )
     return list(result)
+
+
+async def get_current_month_totals(
+    session: AsyncSession, user_id: int
+) -> list[tuple[str, str, Decimal]]:
+    month_start = func.date_trunc("month", func.now())
+    result = await session.execute(
+        select(
+            Expense.category,
+            Expense.currency,
+            func.sum(Expense.amount).label("total"),
+        )
+        .where(
+            Expense.user_id == user_id,
+            Expense.spent_at >= month_start,
+        )
+        .group_by(Expense.category, Expense.currency)
+        .order_by(func.sum(Expense.amount).desc(), Expense.category)
+    )
+    return [
+        (category, currency, total)
+        for category, currency, total in result.all()
+    ]

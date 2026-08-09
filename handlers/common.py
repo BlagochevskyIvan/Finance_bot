@@ -1,3 +1,5 @@
+from collections import defaultdict
+from decimal import Decimal
 from html import escape
 
 from sqlalchemy.exc import SQLAlchemyError
@@ -7,7 +9,7 @@ from telegram.ext import ContextTypes
 
 from config.logger import logger
 from db.database import AsyncSessionLocal
-from db.repositories import get_recent_expenses, upsert_user
+from db.repositories import get_current_month_totals, get_recent_expenses, upsert_user
 
 
 def main_menu_keyboard() -> InlineKeyboardMarkup:
@@ -15,6 +17,7 @@ def main_menu_keyboard() -> InlineKeyboardMarkup:
         [
             [InlineKeyboardButton("➕ Добавить расход", callback_data="expense:add")],
             [InlineKeyboardButton("📋 Последние расходы", callback_data="menu:recent")],
+            [InlineKeyboardButton("📊 Статистика", callback_data="menu:stats")],
             [InlineKeyboardButton("ℹ️ Помощь", callback_data="menu:help")],
         ]
     )
@@ -123,6 +126,64 @@ async def show_recent_expenses(
                 [InlineKeyboardButton("➕ Добавить расход", callback_data="expense:add")],
                 [InlineKeyboardButton("⬅️ В меню", callback_data="menu:main")],
             ]
+        ),
+    )
+
+
+def format_monthly_stats(totals: list[tuple[str, str, Decimal]]) -> str:
+    if not totals:
+        return "В этом месяце расходов пока нет."
+
+    currency_totals: dict[str, Decimal] = defaultdict(Decimal)
+    rows = ["<b>Расходы за текущий месяц:</b>"]
+    for category, currency, amount in totals:
+        rows.append(
+            f"• {escape(category)}: <b>{amount:.2f} {escape(currency)}</b>"
+        )
+        currency_totals[currency] += amount
+
+    rows.append("")
+    rows.append("<b>Итого:</b>")
+    rows.extend(
+        f"{amount:.2f} {escape(currency)}"
+        for currency, amount in sorted(currency_totals.items())
+    )
+    return "\n".join(rows)
+
+
+async def show_monthly_stats(
+    update: Update, context: ContextTypes.DEFAULT_TYPE
+) -> None:
+    del context
+    query = update.callback_query
+    telegram_user = update.effective_user
+    if telegram_user is None:
+        return
+    if query is not None:
+        await query.answer()
+
+    try:
+        async with AsyncSessionLocal() as session:
+            user = await upsert_user(session, telegram_user)
+            totals = await get_current_month_totals(session, user.id)
+            await session.commit()
+    except SQLAlchemyError:
+        logger.exception(
+            "Failed to load monthly stats for Telegram user %s", telegram_user.id
+        )
+        await _send_or_edit(
+            update,
+            "Не удалось загрузить статистику. Попробуйте позже.",
+            reply_markup=main_menu_keyboard(),
+        )
+        return
+
+    await _send_or_edit(
+        update,
+        format_monthly_stats(totals),
+        parse_mode=ParseMode.HTML,
+        reply_markup=InlineKeyboardMarkup(
+            [[InlineKeyboardButton("⬅️ В меню", callback_data="menu:main")]]
         ),
     )
 

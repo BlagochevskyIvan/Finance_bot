@@ -2,6 +2,7 @@ import unittest
 from decimal import Decimal
 
 from db.models import Base, Expense
+from handlers.common import format_monthly_stats
 from handlers.expenses import parse_amount
 
 
@@ -21,6 +22,26 @@ class ExpenseModelTests(unittest.TestCase):
         self.assertIn("expenses", Base.metadata.tables)
         foreign_keys = {key.target_fullname for key in Expense.__table__.foreign_keys}
         self.assertEqual(foreign_keys, {"users.id"})
+
+
+class MonthlyStatsTests(unittest.TestCase):
+    def test_formats_category_and_currency_totals(self) -> None:
+        totals = [
+            ("🍔 Еда", "RUB", Decimal("1200.50")),
+            ("🚕 Транспорт", "RUB", Decimal("300.00")),
+        ]
+
+        text = format_monthly_stats(totals)
+
+        self.assertIn("🍔 Еда: <b>1200.50 RUB</b>", text)
+        self.assertIn("🚕 Транспорт: <b>300.00 RUB</b>", text)
+        self.assertTrue(text.endswith("1500.50 RUB"))
+
+    def test_formats_empty_month(self) -> None:
+        self.assertEqual(
+            format_monthly_stats([]),
+            "В этом месяце расходов пока нет.",
+        )
 
 
 if __name__ == "__main__":

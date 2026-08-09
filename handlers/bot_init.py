@@ -14,6 +14,7 @@ from config.states import EXPENSE_AMOUNT, EXPENSE_CATEGORY, EXPENSE_DESCRIPTION
 from handlers.common import (
     show_help,
     show_main_menu,
+    show_monthly_stats,
     show_recent_expenses,
     start,
 )
@@ -72,9 +73,13 @@ def create_bot_app() -> Application:
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("menu", show_main_menu))
     application.add_handler(CommandHandler("help", show_help))
+    application.add_handler(CommandHandler("stats", show_monthly_stats))
     application.add_handler(CallbackQueryHandler(show_main_menu, pattern=r"^menu:main$"))
     application.add_handler(
         CallbackQueryHandler(show_recent_expenses, pattern=r"^menu:recent$")
+    )
+    application.add_handler(
+        CallbackQueryHandler(show_monthly_stats, pattern=r"^menu:stats$")
     )
     application.add_handler(CallbackQueryHandler(show_help, pattern=r"^menu:help$"))
     logger.info("Telegram bot application initialized")
