@@ -1,8 +1,9 @@
 import unittest
+from datetime import UTC, datetime
 from decimal import Decimal
 
 from db.models import Base, Expense
-from handlers.common import format_monthly_stats
+from handlers.common import format_expense, format_monthly_stats
 from handlers.expenses import parse_amount
 
 
@@ -42,6 +43,23 @@ class MonthlyStatsTests(unittest.TestCase):
             format_monthly_stats([]),
             "В этом месяце расходов пока нет.",
         )
+
+
+class ExpenseFormattingTests(unittest.TestCase):
+    def test_formats_expense_and_escapes_user_text(self) -> None:
+        expense = Expense(
+            amount=Decimal("499.90"),
+            currency="RUB",
+            category="Дом & ремонт",
+            description="Лампа <белая>",
+            spent_at=datetime(2026, 8, 10, tzinfo=UTC),
+        )
+
+        text = format_expense(expense)
+
+        self.assertIn("10.08.2026 · Дом &amp; ремонт", text)
+        self.assertIn("<b>499.90 RUB</b>", text)
+        self.assertIn("Лампа &lt;белая&gt;", text)
 
 
 if __name__ == "__main__":

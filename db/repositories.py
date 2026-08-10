@@ -55,6 +55,23 @@ async def get_recent_expenses(
     return list(result)
 
 
+async def delete_expense(
+    session: AsyncSession, *, user_id: int, expense_id: int
+) -> Expense | None:
+    result = await session.scalars(
+        select(Expense)
+        .where(
+            Expense.id == expense_id,
+            Expense.user_id == user_id,
+        )
+        .with_for_update()
+    )
+    expense = result.one_or_none()
+    if expense is not None:
+        await session.delete(expense)
+    return expense
+
+
 async def get_current_month_totals(
     session: AsyncSession, user_id: int
 ) -> list[tuple[str, str, Decimal]]:

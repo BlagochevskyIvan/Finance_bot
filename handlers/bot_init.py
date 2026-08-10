@@ -12,10 +12,12 @@ from config.envcfg import BOT_CACHE_PATH, TELEGRAM_TOKEN
 from config.logger import logger
 from config.states import EXPENSE_AMOUNT, EXPENSE_CATEGORY, EXPENSE_DESCRIPTION
 from handlers.common import (
+    confirm_delete_expense,
     show_help,
     show_main_menu,
     show_monthly_stats,
     show_recent_expenses,
+    show_undo_expense,
     start,
 )
 from handlers.expenses import (
@@ -80,6 +82,15 @@ def create_bot_app() -> Application:
     )
     application.add_handler(
         CallbackQueryHandler(show_monthly_stats, pattern=r"^menu:stats$")
+    )
+    application.add_handler(
+        CallbackQueryHandler(show_undo_expense, pattern=r"^menu:undo$")
+    )
+    application.add_handler(
+        CallbackQueryHandler(
+            confirm_delete_expense,
+            pattern=r"^expense:delete:\d+$",
+        )
     )
     application.add_handler(CallbackQueryHandler(show_help, pattern=r"^menu:help$"))
     logger.info("Telegram bot application initialized")

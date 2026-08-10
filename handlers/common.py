@@ -9,7 +9,13 @@ from telegram.ext import ContextTypes
 
 from config.logger import logger
 from db.database import AsyncSessionLocal
-from db.repositories import get_current_month_totals, get_recent_expenses, upsert_user
+from db.models import Expense
+from db.repositories import (
+    delete_expense,
+    get_current_month_totals,
+    get_recent_expenses,
+    upsert_user,
+)
 
 
 def main_menu_keyboard() -> InlineKeyboardMarkup:
@@ -18,6 +24,7 @@ def main_menu_keyboard() -> InlineKeyboardMarkup:
             [InlineKeyboardButton("➕ Добавить расход", callback_data="expense:add")],
             [InlineKeyboardButton("📋 Последние расходы", callback_data="menu:recent")],
             [InlineKeyboardButton("📊 Статистика", callback_data="menu:stats")],
+            [InlineKeyboardButton("↩️ Отменить расход", callback_data="menu:undo")],
             [InlineKeyboardButton("ℹ️ Помощь", callback_data="menu:help")],
         ]
     )
@@ -185,6 +192,114 @@ async def show_monthly_stats(
         reply_markup=InlineKeyboardMarkup(
             [[InlineKeyboardButton("⬅️ В меню", callback_data="menu:main")]]
         ),
+    )
+
+
+def format_expense(expense: Expense) -> str:
+    description = (
+        f"\nКомментарий: {escape(expense.description)}"
+        if expense.description
+        else ""
+    )
+    return (
+        f"{expense.spent_at:%d.%m.%Y} · {escape(expense.category)}\n"
+        f"<b>{expense.amount:.2f} {escape(expense.currency)}</b>"
+        f"{description}"
+    )
+
+
+async def show_undo_expense(
+    update: Update, context: ContextTypes.DEFAULT_TYPE
+) -> None:
+    del context
+    query = update.callback_query
+    telegram_user = update.effective_user
+    if query is None or telegram_user is None:
+        return
+    await query.answer()
+
+    try:
+        async with AsyncSessionLocal() as session:
+            user = await upsert_user(session, telegram_user)
+            expenses = await get_recent_expenses(session, user.id, limit=1)
+            await session.commit()
+    except SQLAlchemyError:
+        logger.exception(
+            "Failed to load the latest expense for Telegram user %s",
+            telegram_user.id,
+        )
+        await query.edit_message_text(
+            "Не удалось загрузить последний расход. Попробуйте позже.",
+            reply_markup=main_menu_keyboard(),
+        )
+        return
+
+    if not expenses:
+        await query.edit_message_text(
+            "У вас пока нет расходов для отмены.",
+            reply_markup=main_menu_keyboard(),
+        )
+        return
+
+    expense = expenses[0]
+    await query.edit_message_text(
+        "<b>Удалить этот расход?</b>\n\n" + format_expense(expense),
+        parse_mode=ParseMode.HTML,
+        reply_markup=InlineKeyboardMarkup(
+            [
+                [
+                    InlineKeyboardButton(
+                        "🗑 Удалить",
+                        callback_data=f"expense:delete:{expense.id}",
+                    )
+                ],
+                [InlineKeyboardButton("⬅️ Отмена", callback_data="menu:main")],
+            ]
+        ),
+    )
+
+
+async def confirm_delete_expense(
+    update: Update, context: ContextTypes.DEFAULT_TYPE
+) -> None:
+    del context
+    query = update.callback_query
+    telegram_user = update.effective_user
+    if query is None or query.data is None or telegram_user is None:
+        return
+    await query.answer()
+    expense_id = int(query.data.rsplit(":", maxsplit=1)[-1])
+
+    try:
+        async with AsyncSessionLocal() as session:
+            user = await upsert_user(session, telegram_user)
+            expense = await delete_expense(
+                session,
+                user_id=user.id,
+                expense_id=expense_id,
+            )
+            await session.commit()
+    except SQLAlchemyError:
+        logger.exception(
+            "Failed to delete expense %s for Telegram user %s",
+            expense_id,
+            telegram_user.id,
+        )
+        await query.edit_message_text(
+            "Не удалось удалить расход. Попробуйте позже.",
+            reply_markup=main_menu_keyboard(),
+        )
+        return
+
+    if expense is None:
+        text = "Расход уже удалён или не найден."
+    else:
+        text = "✅ <b>Расход удалён</b>\n\n" + format_expense(expense)
+
+    await query.edit_message_text(
+        text,
+        parse_mode=ParseMode.HTML,
+        reply_markup=main_menu_keyboard(),
     )
 
 
