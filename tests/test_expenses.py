@@ -3,7 +3,11 @@ from datetime import UTC, datetime
 from decimal import Decimal
 
 from db.models import Base, Expense
-from handlers.common import format_expense, format_monthly_stats
+from handlers.common import (
+    format_expense,
+    format_monthly_stats,
+    format_recent_expenses,
+)
 from handlers.expenses import parse_amount
 
 
@@ -60,6 +64,26 @@ class ExpenseFormattingTests(unittest.TestCase):
         self.assertIn("10.08.2026 · Дом &amp; ремонт", text)
         self.assertIn("<b>499.90 RUB</b>", text)
         self.assertIn("Лампа &lt;белая&gt;", text)
+
+    def test_formats_recent_expenses_and_escapes_user_text(self) -> None:
+        expense = Expense(
+            amount=Decimal("150.00"),
+            currency="RUB",
+            category="Еда & напитки",
+            description="Кофе <латте>",
+            spent_at=datetime(2026, 8, 11, tzinfo=UTC),
+        )
+
+        text = format_recent_expenses([expense])
+
+        self.assertIn("11.08.2026 · Еда &amp; напитки", text)
+        self.assertIn("Кофе &lt;латте&gt;", text)
+
+    def test_formats_empty_recent_expenses(self) -> None:
+        self.assertEqual(
+            format_recent_expenses([]),
+            "У вас пока нет расходов. Добавьте первый.",
+        )
 
 
 if __name__ == "__main__":

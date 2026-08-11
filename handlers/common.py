@@ -92,9 +92,10 @@ async def show_recent_expenses(
     del context
     query = update.callback_query
     telegram_user = update.effective_user
-    if query is None or telegram_user is None:
+    if telegram_user is None:
         return
-    await query.answer()
+    if query is not None:
+        await query.answer()
 
     try:
         async with AsyncSessionLocal() as session:
@@ -103,30 +104,16 @@ async def show_recent_expenses(
             await session.commit()
     except SQLAlchemyError:
         logger.exception("Failed to load expenses for Telegram user %s", telegram_user.id)
-        await query.edit_message_text(
+        await _send_or_edit(
+            update,
             "Не удалось загрузить расходы. Попробуйте позже.",
             reply_markup=main_menu_keyboard(),
         )
         return
 
-    if not expenses:
-        text = "У вас пока нет расходов. Добавьте первый."
-    else:
-        rows = ["<b>Последние расходы:</b>"]
-        for expense in expenses:
-            description = (
-                f" — {escape(expense.description)}" if expense.description else ""
-            )
-            rows.append(
-                f"• {expense.spent_at:%d.%m.%Y} · "
-                f"{escape(expense.category)} · "
-                f"<b>{expense.amount:.2f} {escape(expense.currency)}</b>"
-                f"{description}"
-            )
-        text = "\n".join(rows)
-
-    await query.edit_message_text(
-        text,
+    await _send_or_edit(
+        update,
+        format_recent_expenses(expenses),
         parse_mode=ParseMode.HTML,
         reply_markup=InlineKeyboardMarkup(
             [
@@ -135,6 +122,24 @@ async def show_recent_expenses(
             ]
         ),
     )
+
+
+def format_recent_expenses(expenses: list[Expense]) -> str:
+    if not expenses:
+        return "У вас пока нет расходов. Добавьте первый."
+
+    rows = ["<b>Последние расходы:</b>"]
+    for expense in expenses:
+        description = (
+            f" — {escape(expense.description)}" if expense.description else ""
+        )
+        rows.append(
+            f"• {expense.spent_at:%d.%m.%Y} · "
+            f"{escape(expense.category)} · "
+            f"<b>{expense.amount:.2f} {escape(expense.currency)}</b>"
+            f"{description}"
+        )
+    return "\n".join(rows)
 
 
 def format_monthly_stats(totals: list[tuple[str, str, Decimal]]) -> str:
