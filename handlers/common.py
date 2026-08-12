@@ -219,9 +219,10 @@ async def show_undo_expense(
     del context
     query = update.callback_query
     telegram_user = update.effective_user
-    if query is None or telegram_user is None:
+    if telegram_user is None:
         return
-    await query.answer()
+    if query is not None:
+        await query.answer()
 
     try:
         async with AsyncSessionLocal() as session:
@@ -233,21 +234,24 @@ async def show_undo_expense(
             "Failed to load the latest expense for Telegram user %s",
             telegram_user.id,
         )
-        await query.edit_message_text(
+        await _send_or_edit(
+            update,
             "Не удалось загрузить последний расход. Попробуйте позже.",
             reply_markup=main_menu_keyboard(),
         )
         return
 
     if not expenses:
-        await query.edit_message_text(
+        await _send_or_edit(
+            update,
             "У вас пока нет расходов для отмены.",
             reply_markup=main_menu_keyboard(),
         )
         return
 
     expense = expenses[0]
-    await query.edit_message_text(
+    await _send_or_edit(
+        update,
         "<b>Удалить этот расход?</b>\n\n" + format_expense(expense),
         parse_mode=ParseMode.HTML,
         reply_markup=InlineKeyboardMarkup(
