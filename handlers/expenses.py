@@ -45,16 +45,26 @@ async def start_add_expense(
     update: Update, context: ContextTypes.DEFAULT_TYPE
 ) -> int:
     query = update.callback_query
-    if query is None:
+    context.user_data[DRAFT_KEY] = {}
+    prompt = "Введите сумму расхода в рублях, например: <code>1250,50</code>"
+
+    if query is not None:
+        await query.answer()
+        await query.edit_message_text(
+            prompt,
+            parse_mode=ParseMode.HTML,
+            reply_markup=cancel_keyboard(),
+        )
+    elif update.effective_message is not None:
+        await update.effective_message.reply_text(
+            prompt,
+            parse_mode=ParseMode.HTML,
+            reply_markup=cancel_keyboard(),
+        )
+    else:
+        context.user_data.pop(DRAFT_KEY, None)
         return ConversationHandler.END
 
-    await query.answer()
-    context.user_data[DRAFT_KEY] = {}
-    await query.edit_message_text(
-        "Введите сумму расхода в рублях, например: <code>1250,50</code>",
-        parse_mode=ParseMode.HTML,
-        reply_markup=cancel_keyboard(),
-    )
     return EXPENSE_AMOUNT
 
 

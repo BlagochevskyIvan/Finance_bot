@@ -1,14 +1,17 @@
 import unittest
 from datetime import UTC, datetime
 from decimal import Decimal
+from types import SimpleNamespace
+from unittest.mock import AsyncMock
 
+from config.states import EXPENSE_AMOUNT
 from db.models import Base, Expense
 from handlers.common import (
     format_expense,
     format_monthly_stats,
     format_recent_expenses,
 )
-from handlers.expenses import parse_amount
+from handlers.expenses import DRAFT_KEY, parse_amount, start_add_expense
 
 
 class ParseAmountTests(unittest.TestCase):
@@ -20,6 +23,19 @@ class ParseAmountTests(unittest.TestCase):
         for value in ("", "text", "0", "-10", "NaN", "Infinity"):
             with self.subTest(value=value):
                 self.assertIsNone(parse_amount(value))
+
+
+class AddExpenseCommandTests(unittest.IsolatedAsyncioTestCase):
+    async def test_starts_expense_flow_from_command_message(self) -> None:
+        message = SimpleNamespace(reply_text=AsyncMock())
+        update = SimpleNamespace(callback_query=None, effective_message=message)
+        context = SimpleNamespace(user_data={DRAFT_KEY: {"stale": True}})
+
+        state = await start_add_expense(update, context)
+
+        self.assertEqual(state, EXPENSE_AMOUNT)
+        self.assertEqual(context.user_data[DRAFT_KEY], {})
+        message.reply_text.assert_awaited_once()
 
 
 class ExpenseModelTests(unittest.TestCase):

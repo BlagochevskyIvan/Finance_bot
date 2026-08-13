@@ -43,6 +43,7 @@ def create_bot_app() -> Application:
     )
     expense_conversation = ConversationHandler(
         entry_points=[
+            CommandHandler("add", start_add_expense),
             CallbackQueryHandler(start_add_expense, pattern=r"^expense:add$")
         ],
         states={
