@@ -11,6 +11,7 @@ from handlers.common import (
     format_monthly_stats,
     format_recent_expenses,
 )
+from handlers.bot_init import BOT_COMMANDS
 from handlers.expenses import DRAFT_KEY, parse_amount, start_add_expense
 
 
@@ -36,6 +37,16 @@ class AddExpenseCommandTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(state, EXPENSE_AMOUNT)
         self.assertEqual(context.user_data[DRAFT_KEY], {})
         message.reply_text.assert_awaited_once()
+
+
+class BotCommandMenuTests(unittest.TestCase):
+    def test_publishes_every_documented_command(self) -> None:
+        commands = {command.command for command in BOT_COMMANDS}
+
+        self.assertEqual(
+            commands,
+            {"start", "add", "menu", "help", "recent", "stats", "undo", "cancel"},
+        )
 
 
 class ExpenseModelTests(unittest.TestCase):

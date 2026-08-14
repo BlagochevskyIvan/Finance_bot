@@ -1,3 +1,4 @@
+from telegram import BotCommand
 from telegram.ext import (
     Application,
     CallbackQueryHandler,
@@ -29,6 +30,18 @@ from handlers.expenses import (
     restart_from_conversation,
     skip_description,
     start_add_expense,
+)
+
+
+BOT_COMMANDS = (
+    BotCommand("start", "Открыть главное меню"),
+    BotCommand("add", "Добавить новый расход"),
+    BotCommand("recent", "Показать последние расходы"),
+    BotCommand("stats", "Показать статистику за месяц"),
+    BotCommand("undo", "Удалить последний расход"),
+    BotCommand("menu", "Открыть главное меню"),
+    BotCommand("help", "Показать инструкцию"),
+    BotCommand("cancel", "Отменить добавление расхода"),
 )
 
 

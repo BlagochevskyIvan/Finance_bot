@@ -12,7 +12,7 @@ from config.envcfg import (
     WEBHOOK_URL,
 )
 from config.logger import logger
-from handlers.bot_init import create_bot_app
+from handlers.bot_init import BOT_COMMANDS, create_bot_app
 from server.routers.api_router import router as api_router
 from server.routers.common_router import router as common_router
 
@@ -26,13 +26,16 @@ async def lifespan(app: FastAPI):
         app.state.bot_app = bot_app
         await bot_app.initialize()
         await bot_app.start()
+        await bot_app.bot.set_my_commands(BOT_COMMANDS)
         await bot_app.bot.set_webhook(
             url=f"{WEBHOOK_URL}{WEBHOOK_PATH}",
             allowed_updates=Update.ALL_TYPES,
             drop_pending_updates=DROP_PENDING,
             secret_token=TELEGRAM_SECRET or None,
         )
-        logger.info("Telegram webhook set: %s%s", WEBHOOK_URL, WEBHOOK_PATH)
+        logger.info(
+            "Telegram commands and webhook set: %s%s", WEBHOOK_URL, WEBHOOK_PATH
+        )
     else:
         logger.info("Telegram bot is disabled; set BOT_ENABLED=true to start it")
 
