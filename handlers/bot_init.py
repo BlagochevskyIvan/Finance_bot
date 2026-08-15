@@ -18,6 +18,7 @@ from handlers.common import (
     show_main_menu,
     show_monthly_stats,
     show_recent_expenses,
+    show_today_stats,
     show_undo_expense,
     start,
 )
@@ -37,6 +38,7 @@ BOT_COMMANDS = (
     BotCommand("start", "Открыть главное меню"),
     BotCommand("add", "Добавить новый расход"),
     BotCommand("recent", "Показать последние расходы"),
+    BotCommand("today", "Показать расходы за сегодня"),
     BotCommand("stats", "Показать статистику за месяц"),
     BotCommand("undo", "Удалить последний расход"),
     BotCommand("menu", "Открыть главное меню"),
@@ -90,6 +92,7 @@ def create_bot_app() -> Application:
     application.add_handler(CommandHandler("menu", show_main_menu))
     application.add_handler(CommandHandler("help", show_help))
     application.add_handler(CommandHandler("stats", show_monthly_stats))
+    application.add_handler(CommandHandler("today", show_today_stats))
     application.add_handler(CommandHandler("recent", show_recent_expenses))
     application.add_handler(CommandHandler("undo", show_undo_expense))
     application.add_handler(CallbackQueryHandler(show_main_menu, pattern=r"^menu:main$"))
@@ -98,6 +101,9 @@ def create_bot_app() -> Application:
     )
     application.add_handler(
         CallbackQueryHandler(show_monthly_stats, pattern=r"^menu:stats$")
+    )
+    application.add_handler(
+        CallbackQueryHandler(show_today_stats, pattern=r"^menu:today$")
     )
     application.add_handler(
         CallbackQueryHandler(show_undo_expense, pattern=r"^menu:undo$")

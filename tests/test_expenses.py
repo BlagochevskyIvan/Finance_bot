@@ -10,6 +10,7 @@ from handlers.common import (
     format_expense,
     format_monthly_stats,
     format_recent_expenses,
+    format_today_stats,
 )
 from handlers.bot_init import BOT_COMMANDS
 from handlers.expenses import DRAFT_KEY, parse_amount, start_add_expense
@@ -45,7 +46,17 @@ class BotCommandMenuTests(unittest.TestCase):
 
         self.assertEqual(
             commands,
-            {"start", "add", "menu", "help", "recent", "stats", "undo", "cancel"},
+            {
+                "start",
+                "add",
+                "menu",
+                "help",
+                "recent",
+                "today",
+                "stats",
+                "undo",
+                "cancel",
+            },
         )
 
 
@@ -74,6 +85,17 @@ class MonthlyStatsTests(unittest.TestCase):
             format_monthly_stats([]),
             "В этом месяце расходов пока нет.",
         )
+
+    def test_formats_today_totals(self) -> None:
+        text = format_today_stats(
+            [("🍔 Еда", "RUB", Decimal("450.25"))]
+        )
+
+        self.assertIn("<b>Расходы за сегодня:</b>", text)
+        self.assertTrue(text.endswith("450.25 RUB"))
+
+    def test_formats_empty_today(self) -> None:
+        self.assertEqual(format_today_stats([]), "Сегодня расходов пока нет.")
 
 
 class ExpenseFormattingTests(unittest.TestCase):

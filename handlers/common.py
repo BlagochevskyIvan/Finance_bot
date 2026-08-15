@@ -14,6 +14,7 @@ from db.repositories import (
     delete_expense,
     get_current_month_totals,
     get_recent_expenses,
+    get_today_totals,
     upsert_user,
 )
 
@@ -23,7 +24,10 @@ def main_menu_keyboard() -> InlineKeyboardMarkup:
         [
             [InlineKeyboardButton("➕ Добавить расход", callback_data="expense:add")],
             [InlineKeyboardButton("📋 Последние расходы", callback_data="menu:recent")],
-            [InlineKeyboardButton("📊 Статистика", callback_data="menu:stats")],
+            [
+                InlineKeyboardButton("📅 Сегодня", callback_data="menu:today"),
+                InlineKeyboardButton("📊 Месяц", callback_data="menu:stats"),
+            ],
             [InlineKeyboardButton("↩️ Отменить расход", callback_data="menu:undo")],
             [InlineKeyboardButton("ℹ️ Помощь", callback_data="menu:help")],
         ]
@@ -143,11 +147,32 @@ def format_recent_expenses(expenses: list[Expense]) -> str:
 
 
 def format_monthly_stats(totals: list[tuple[str, str, Decimal]]) -> str:
+    return format_period_stats(
+        totals,
+        title="Расходы за текущий месяц:",
+        empty_message="В этом месяце расходов пока нет.",
+    )
+
+
+def format_today_stats(totals: list[tuple[str, str, Decimal]]) -> str:
+    return format_period_stats(
+        totals,
+        title="Расходы за сегодня:",
+        empty_message="Сегодня расходов пока нет.",
+    )
+
+
+def format_period_stats(
+    totals: list[tuple[str, str, Decimal]],
+    *,
+    title: str,
+    empty_message: str,
+) -> str:
     if not totals:
-        return "В этом месяце расходов пока нет."
+        return empty_message
 
     currency_totals: dict[str, Decimal] = defaultdict(Decimal)
-    rows = ["<b>Расходы за текущий месяц:</b>"]
+    rows = [f"<b>{escape(title)}</b>"]
     for category, currency, amount in totals:
         rows.append(
             f"• {escape(category)}: <b>{amount:.2f} {escape(currency)}</b>"
@@ -193,6 +218,43 @@ async def show_monthly_stats(
     await _send_or_edit(
         update,
         format_monthly_stats(totals),
+        parse_mode=ParseMode.HTML,
+        reply_markup=InlineKeyboardMarkup(
+            [[InlineKeyboardButton("⬅️ В меню", callback_data="menu:main")]]
+        ),
+    )
+
+
+async def show_today_stats(
+    update: Update, context: ContextTypes.DEFAULT_TYPE
+) -> None:
+    del context
+    query = update.callback_query
+    telegram_user = update.effective_user
+    if telegram_user is None:
+        return
+    if query is not None:
+        await query.answer()
+
+    try:
+        async with AsyncSessionLocal() as session:
+            user = await upsert_user(session, telegram_user)
+            totals = await get_today_totals(session, user.id)
+            await session.commit()
+    except SQLAlchemyError:
+        logger.exception(
+            "Failed to load today's stats for Telegram user %s", telegram_user.id
+        )
+        await _send_or_edit(
+            update,
+            "Не удалось загрузить расходы за сегодня. Попробуйте позже.",
+            reply_markup=main_menu_keyboard(),
+        )
+        return
+
+    await _send_or_edit(
+        update,
+        format_today_stats(totals),
         parse_mode=ParseMode.HTML,
         reply_markup=InlineKeyboardMarkup(
             [[InlineKeyboardButton("⬅️ В меню", callback_data="menu:main")]]

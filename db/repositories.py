@@ -75,7 +75,19 @@ async def delete_expense(
 async def get_current_month_totals(
     session: AsyncSession, user_id: int
 ) -> list[tuple[str, str, Decimal]]:
-    month_start = func.date_trunc("month", func.now())
+    return await _get_totals_since(session, user_id, period="month")
+
+
+async def get_today_totals(
+    session: AsyncSession, user_id: int
+) -> list[tuple[str, str, Decimal]]:
+    return await _get_totals_since(session, user_id, period="day")
+
+
+async def _get_totals_since(
+    session: AsyncSession, user_id: int, *, period: str
+) -> list[tuple[str, str, Decimal]]:
+    period_start = func.date_trunc(period, func.now())
     result = await session.execute(
         select(
             Expense.category,
@@ -84,7 +96,7 @@ async def get_current_month_totals(
         )
         .where(
             Expense.user_id == user_id,
-            Expense.spent_at >= month_start,
+            Expense.spent_at >= period_start,
         )
         .group_by(Expense.category, Expense.currency)
         .order_by(func.sum(Expense.amount).desc(), Expense.category)
