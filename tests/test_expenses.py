@@ -1,12 +1,15 @@
+import csv
 import unittest
 from datetime import UTC, datetime
 from decimal import Decimal
+from io import StringIO
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
 from config.states import EXPENSE_AMOUNT
 from db.models import Base, Expense
 from handlers.common import (
+    build_expenses_csv,
     format_expense,
     format_monthly_stats,
     format_recent_expenses,
@@ -55,6 +58,7 @@ class BotCommandMenuTests(unittest.TestCase):
                 "today",
                 "stats",
                 "undo",
+                "export",
                 "cancel",
             },
         )
@@ -133,6 +137,48 @@ class ExpenseFormattingTests(unittest.TestCase):
             format_recent_expenses([]),
             "У вас пока нет расходов. Добавьте первый.",
         )
+
+    def test_builds_excel_friendly_csv_export(self) -> None:
+        expense = Expense(
+            amount=Decimal("1250.50"),
+            currency="RUB",
+            category="Еда; напитки",
+            description="Обед, кофе",
+            spent_at=datetime(2026, 8, 16, 12, 30, tzinfo=UTC),
+        )
+
+        exported = build_expenses_csv([expense])
+        rows = list(
+            csv.reader(
+                StringIO(exported.decode("utf-8-sig")),
+                delimiter=";",
+            )
+        )
+
+        self.assertTrue(exported.startswith(b"\xef\xbb\xbf"))
+        self.assertEqual(
+            rows[0],
+            ["Дата", "Категория", "Сумма", "Валюта", "Комментарий"],
+        )
+        self.assertEqual(rows[1][1:], ["Еда; напитки", "1250.50", "RUB", "Обед, кофе"])
+
+    def test_csv_export_neutralizes_spreadsheet_formulas(self) -> None:
+        expense = Expense(
+            amount=Decimal("1.00"),
+            currency="RUB",
+            category="📦 Другое",
+            description="=2+2",
+            spent_at=datetime(2026, 8, 16, tzinfo=UTC),
+        )
+
+        rows = list(
+            csv.reader(
+                StringIO(build_expenses_csv([expense]).decode("utf-8-sig")),
+                delimiter=";",
+            )
+        )
+
+        self.assertEqual(rows[1][-1], "'=2+2")
 
 
 if __name__ == "__main__":

@@ -13,6 +13,7 @@ from config.envcfg import BOT_CACHE_PATH, TELEGRAM_TOKEN
 from config.logger import logger
 from config.states import EXPENSE_AMOUNT, EXPENSE_CATEGORY, EXPENSE_DESCRIPTION
 from handlers.common import (
+    export_expenses,
     confirm_delete_expense,
     show_help,
     show_main_menu,
@@ -41,6 +42,7 @@ BOT_COMMANDS = (
     BotCommand("today", "Показать расходы за сегодня"),
     BotCommand("stats", "Показать статистику за месяц"),
     BotCommand("undo", "Удалить последний расход"),
+    BotCommand("export", "Экспортировать расходы в CSV"),
     BotCommand("menu", "Открыть главное меню"),
     BotCommand("help", "Показать инструкцию"),
     BotCommand("cancel", "Отменить добавление расхода"),
@@ -95,6 +97,7 @@ def create_bot_app() -> Application:
     application.add_handler(CommandHandler("today", show_today_stats))
     application.add_handler(CommandHandler("recent", show_recent_expenses))
     application.add_handler(CommandHandler("undo", show_undo_expense))
+    application.add_handler(CommandHandler("export", export_expenses))
     application.add_handler(CallbackQueryHandler(show_main_menu, pattern=r"^menu:main$"))
     application.add_handler(
         CallbackQueryHandler(show_recent_expenses, pattern=r"^menu:recent$")
@@ -107,6 +110,9 @@ def create_bot_app() -> Application:
     )
     application.add_handler(
         CallbackQueryHandler(show_undo_expense, pattern=r"^menu:undo$")
+    )
+    application.add_handler(
+        CallbackQueryHandler(export_expenses, pattern=r"^menu:export$")
     )
     application.add_handler(
         CallbackQueryHandler(

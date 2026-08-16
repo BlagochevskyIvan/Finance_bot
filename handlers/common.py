@@ -1,6 +1,9 @@
+import csv
 from collections import defaultdict
+from datetime import UTC, datetime
 from decimal import Decimal
 from html import escape
+from io import BytesIO, StringIO
 
 from sqlalchemy.exc import SQLAlchemyError
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
@@ -13,6 +16,7 @@ from db.models import Expense
 from db.repositories import (
     delete_expense,
     get_current_month_totals,
+    get_expenses_for_export,
     get_recent_expenses,
     get_today_totals,
     upsert_user,
@@ -29,6 +33,7 @@ def main_menu_keyboard() -> InlineKeyboardMarkup:
                 InlineKeyboardButton("📊 Месяц", callback_data="menu:stats"),
             ],
             [InlineKeyboardButton("↩️ Отменить расход", callback_data="menu:undo")],
+            [InlineKeyboardButton("📤 Экспорт CSV", callback_data="menu:export")],
             [InlineKeyboardButton("ℹ️ Помощь", callback_data="menu:help")],
         ]
     )
@@ -144,6 +149,75 @@ def format_recent_expenses(expenses: list[Expense]) -> str:
             f"{description}"
         )
     return "\n".join(rows)
+
+
+def build_expenses_csv(expenses: list[Expense]) -> bytes:
+    output = StringIO(newline="")
+    writer = csv.writer(output, delimiter=";")
+    writer.writerow(["Дата", "Категория", "Сумма", "Валюта", "Комментарий"])
+    for expense in expenses:
+        writer.writerow(
+            [
+                expense.spent_at.isoformat(timespec="seconds"),
+                _csv_safe_text(expense.category),
+                f"{expense.amount:.2f}",
+                _csv_safe_text(expense.currency),
+                _csv_safe_text(expense.description or ""),
+            ]
+        )
+    return output.getvalue().encode("utf-8-sig")
+
+
+def _csv_safe_text(value: str) -> str:
+    if value.lstrip().startswith(("=", "+", "-", "@")):
+        return f"'{value}"
+    return value
+
+
+async def export_expenses(
+    update: Update, context: ContextTypes.DEFAULT_TYPE
+) -> None:
+    del context
+    query = update.callback_query
+    telegram_user = update.effective_user
+    message = update.effective_message
+    if telegram_user is None or message is None:
+        return
+    if query is not None:
+        await query.answer()
+
+    try:
+        async with AsyncSessionLocal() as session:
+            user = await upsert_user(session, telegram_user)
+            expenses = await get_expenses_for_export(session, user.id)
+            await session.commit()
+    except SQLAlchemyError:
+        logger.exception(
+            "Failed to export expenses for Telegram user %s", telegram_user.id
+        )
+        await _send_or_edit(
+            update,
+            "Не удалось подготовить экспорт. Попробуйте позже.",
+            reply_markup=main_menu_keyboard(),
+        )
+        return
+
+    if not expenses:
+        await _send_or_edit(
+            update,
+            "У вас пока нет расходов для экспорта.",
+            reply_markup=main_menu_keyboard(),
+        )
+        return
+
+    document = BytesIO(build_expenses_csv(expenses))
+    filename = f"expenses-{datetime.now(UTC):%Y-%m-%d}.csv"
+    await message.reply_document(
+        document=document,
+        filename=filename,
+        caption=f"Экспортировано расходов: {len(expenses)}.",
+        reply_markup=main_menu_keyboard(),
+    )
 
 
 def format_monthly_stats(totals: list[tuple[str, str, Decimal]]) -> str:

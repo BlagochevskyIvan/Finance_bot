@@ -55,6 +55,18 @@ async def get_recent_expenses(
     return list(result)
 
 
+async def get_expenses_for_export(
+    session: AsyncSession, user_id: int, *, limit: int = 5000
+) -> list[Expense]:
+    result = await session.scalars(
+        select(Expense)
+        .where(Expense.user_id == user_id)
+        .order_by(Expense.spent_at.desc(), Expense.id.desc())
+        .limit(limit)
+    )
+    return list(result)
+
+
 async def delete_expense(
     session: AsyncSession, *, user_id: int, expense_id: int
 ) -> Expense | None:
